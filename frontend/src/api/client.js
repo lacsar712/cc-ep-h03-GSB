@@ -27,6 +27,7 @@ api.interceptors.response.use(
     const n = normalizeApiError({ status: err.status || err.response?.status, message: err.message })
     const e = new Error(n.message)
     e.status = n.status
+    e.kind = n.kind
     return Promise.reject(e)
   },
 )

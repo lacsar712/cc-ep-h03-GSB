@@ -166,7 +166,12 @@ async function withBusy(fn) {
     message.success('命令已接受')
     await load()
   } catch (e) {
-    message.error(e.message || '命令失败')
+    if (e.kind === 'conflict' || e.status === 409) {
+      // 版本冲突（乐观锁过期/终态）：黄色警告，区别于红色参数校验错误
+      message.warning(`${e.message || '版本冲突'}，请刷新页面获取最新版本后重试`)
+    } else {
+      message.error(e.message || '命令失败')
+    }
   } finally {
     busy.value = false
   }

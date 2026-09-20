@@ -14,6 +14,9 @@ from app.models import EventStore, RunProjection
 TERMINAL_STATUSES = {"completed", "aborted"}
 
 
+CONFLICT_STATUS_CODE = 409
+
+
 class DomainError(Exception):
     def __init__(self, message: str, status_code: int = 400):
         self.message = message
@@ -22,10 +25,10 @@ class DomainError(Exception):
 
 
 class ConflictError(DomainError):
-    def __init__(self, message: str = "版本冲突或终态不可变更"):
-        from app.ConflictAsValidation import detail_for_conflict, status_for_conflict
+    """版本冲突 / 终态不可变更:独立的 409 Conflict,不伪装成参数校验失败。"""
 
-        super().__init__(detail_for_conflict(message), status_code=status_for_conflict())
+    def __init__(self, message: str = "版本冲突或终态不可变更"):
+        super().__init__(message, status_code=CONFLICT_STATUS_CODE)
 
 
 def _now() -> datetime:

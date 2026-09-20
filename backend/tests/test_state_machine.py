@@ -87,7 +87,7 @@ def test_start_and_complete_happy_path(db):
     assert run.status == "completed"
     assert run.version == 3
 
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         record_metric(
             db,
             run_id=run.id,
@@ -97,6 +97,8 @@ def test_start_and_complete_happy_path(db):
             step=2,
             expected_version=3,
         )
+    # 终态不可变更同样属于冲突 409，而非参数错误 400
+    assert exc_info.value.status_code == 409
 
 
 def test_optimistic_lock_conflict(db):
@@ -109,7 +111,7 @@ def test_optimistic_lock_conflict(db):
         code_commit_sha="abc1234",
         description=None,
     )
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         record_metric(
             db,
             run_id=run.id,
@@ -119,6 +121,14 @@ def test_optimistic_lock_conflict(db):
             step=1,
             expected_version=0,
         )
+
+    # 冲突必须是独立的 409，而不是参数错误 400
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.status_code != 400
+    # 文案保留版本冲突含义，不得伪装成参数校验失败
+    assert "乐观锁" in exc_info.value.message or "版本冲突" in exc_info.value.message
+    assert "参数不合法" not in exc_info.value.message
+    assert "请求参数不合法" not in exc_info.value.message
 
 
 def test_abort_terminal(db):
