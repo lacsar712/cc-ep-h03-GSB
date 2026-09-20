@@ -23,9 +23,7 @@ class DomainError(Exception):
 
 class ConflictError(DomainError):
     def __init__(self, message: str = "版本冲突或终态不可变更"):
-        from app.ConflictAsValidation import detail_for_conflict, status_for_conflict
-
-        super().__init__(detail_for_conflict(message), status_code=status_for_conflict())
+        super().__init__(message, status_code=409)
 
 
 def _now() -> datetime:

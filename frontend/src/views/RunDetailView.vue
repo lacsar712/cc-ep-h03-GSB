@@ -60,6 +60,18 @@
       </div>
     </div>
 
+    <div v-if="conflictNotice" class="card" style="margin-bottom: 16px; border-color: #d03050">
+      <n-alert type="error" title="版本冲突（HTTP 409）">
+        <div style="margin-bottom: 8px">
+          {{ conflictNotice }}
+        </div>
+        <div class="muted" style="margin-bottom: 8px">
+          该 Run 已被其他操作推进到更新版本，你看到的是过期数据。请刷新后基于最新 version 重试。
+        </div>
+        <n-button size="small" type="error" @click="reloadAfterConflict">刷新到最新版本</n-button>
+      </n-alert>
+    </div>
+
     <div v-if="canWrite" class="card">
       <h3 style="margin-top: 0">命令操作区（乐观锁 expected_version = {{ run.version }}）</h3>
       <div class="grid-2">
@@ -116,6 +128,7 @@ const run = ref(null)
 const busy = ref(false)
 const completeSummary = ref('')
 const abortReason = ref('')
+const conflictNotice = ref('')
 
 const metric = reactive({ name: 'loss', value: 0.5, step: 1 })
 const artifact = reactive({
@@ -159,14 +172,30 @@ async function load() {
   run.value = await getRun(route.params.id)
 }
 
+async function reloadAfterConflict() {
+  conflictNotice.value = ''
+  await load()
+  message.info('已刷新到最新版本，请基于当前 version 重试')
+}
+
 async function withBusy(fn) {
   busy.value = true
   try {
     await fn()
+    conflictNotice.value = ''
     message.success('命令已接受')
     await load()
   } catch (e) {
-    message.error(e.message || '命令失败')
+    if (e.status === 409 || e.kind === 'conflict') {
+      // 版本冲突：独立于缺字段等参数错误展示
+      conflictNotice.value = e.message || '版本冲突：expected_version 与当前 version 不一致'
+      message.error('版本冲突（409）：请刷新到最新版本后重试')
+      await load()
+    } else if (e.status === 400 || e.kind === 'validation') {
+      message.warning('参数不合法（400）：' + (e.message || '请检查必填字段'))
+    } else {
+      message.error(e.message || '命令失败')
+    }
   } finally {
     busy.value = false
   }

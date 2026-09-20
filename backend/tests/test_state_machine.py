@@ -109,7 +109,7 @@ def test_optimistic_lock_conflict(db):
         code_commit_sha="abc1234",
         description=None,
     )
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         record_metric(
             db,
             run_id=run.id,
@@ -119,6 +119,10 @@ def test_optimistic_lock_conflict(db):
             step=1,
             expected_version=0,
         )
+    # 冲突必须是独立的 409，不能伪装成 400 参数错误
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.status_code != 400
+    assert "参数不合法" not in exc_info.value.message
 
 
 def test_abort_terminal(db):
@@ -139,7 +143,7 @@ def test_abort_terminal(db):
         expected_version=1,
     )
     assert run.status == "aborted"
-    with pytest.raises(ConflictError):
+    with pytest.raises(ConflictError) as exc_info:
         complete_run(
             db,
             run_id=run.id,
@@ -147,6 +151,10 @@ def test_abort_terminal(db):
             result_summary="nope",
             expected_version=2,
         )
+    # 终态冲突同样必须是 409，而不是 400 参数错误
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.status_code != 400
+    assert "参数不合法" not in exc_info.value.message
 
 
 def test_projection_matches_event_replay(db):
